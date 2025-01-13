@@ -17,7 +17,10 @@ namespace MeleeTrace
 		EDrawDebugTrace::Type DrawDebugType,
 		bool bHit,
 		const TArray<FHitResult>& HitResults,
-		float DrawTime);
+		float DrawTime,
+		FLinearColor DebugTraceColor = FLinearColor::White,
+		FLinearColor DebugTraceHitColor = FLinearColor::White);
+
 	void DrawDebugSphereTraceMulti(const UWorld* World,
 		const FVector& Start,
 		const FVector& End,
@@ -28,6 +31,7 @@ namespace MeleeTrace
 		const FLinearColor& TraceColor,
 		const FLinearColor& TraceHitColor,
 		float DrawTime);
+
 	void DrawDebugSweptSphere(const UWorld* InWorld,
 		FVector const& Start,
 		FVector const& End,
@@ -36,6 +40,7 @@ namespace MeleeTrace
 		bool bPersistentLines,
 		float LifeTime,
 		uint8 DepthPriority = 0);
+
 	void DrawDebugLineTraceMulti(const UWorld* World,
 		const FVector& Start,
 		const FVector& End,
@@ -45,6 +50,7 @@ namespace MeleeTrace
 		const FLinearColor& TraceColor,
 		const FLinearColor& TraceHitColor,
 		float DrawTime);
+
 	void DrawDebugCapsuleTraceMulti(const UWorld* World,
 		const FVector& Start,
 		const FVector& End,
@@ -57,6 +63,7 @@ namespace MeleeTrace
 		const FLinearColor& TraceColor,
 		const FLinearColor& TraceHitColor,
 		float DrawTime);
+
 	void DrawDebugBoxTraceMulti(const UWorld* World,
 		const FVector& Start,
 		const FVector& End,

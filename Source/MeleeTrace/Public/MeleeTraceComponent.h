@@ -2,39 +2,29 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Components/ActorComponent.h"
-
+#include <CoreMinimal.h>
+#include <Components/ActorComponent.h>
 #include "ActiveMeleeTraceInfo.h"
 #include "MeleeTraceInfo.h"
-
+#include "MeleeTraceSettings.h"
 #include "MeleeTraceComponent.generated.h"
 
+MELEETRACE_API DECLARE_LOG_CATEGORY_EXTERN(LogMeleeTraceComponent, Warning, All);
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FMeleeTraceStart,
-	UMeleeTraceComponent*,
-	ThisComponent,
-	FMeleeTraceInstanceHandle,
-	TraceHandle);
+	UMeleeTraceComponent*, ThisComponent,
+	FMeleeTraceInstanceHandle, TraceHandle);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FMeleeTraceEnd,
-	UMeleeTraceComponent*,
-	ThisComponent,
-	int32,
-	HitCount,
-	FMeleeTraceInstanceHandle,
-	TraceHandle);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_SixParams(FMeleeTraceHit,
-	UMeleeTraceComponent*,
-	ThisComponent,
-	AActor*,
-	HitActor,
-	const FVector&,
-	HitLocation,
-	const FVector&,
-	HitNormal,
-	FName,
-	HitBoneName,
-	FMeleeTraceInstanceHandle,
-	TraceHandle);
+	UMeleeTraceComponent*, ThisComponent,
+	int32, HitCount,
+	FMeleeTraceInstanceHandle, TraceHandle);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FMeleeTraceHit,
+	UMeleeTraceComponent*, ThisComponent, 
+	const FHitResult&, HitResult,
+	FMeleeTraceInstanceHandle, TraceHandle);
+
+extern MELEETRACE_API TAutoConsoleVariable<bool> CVarMeleeTraceShouldDrawDebug;
+extern MELEETRACE_API TAutoConsoleVariable<float> CVarMeleeTraceDrawDebugDuration;
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class MELEETRACE_API UMeleeTraceComponent : public UActorComponent
@@ -43,9 +33,8 @@ class MELEETRACE_API UMeleeTraceComponent : public UActorComponent
 
 public:
 	UMeleeTraceComponent();
-	virtual void TickComponent(float DeltaTime,
-		ELevelTick TickType,
-		FActorComponentTickFunction* ThisTickFunction) override;
+
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 	// Starts trace and uses Context object to generate and later retrieve unique handle for the trace that has been
 	// started. Using this has a known limitation of only one trace being active per Context object. This is fine
@@ -104,6 +93,7 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 	FMeleeTraceHit OnTraceHit;
+
 protected:
 	void InternalStartTrace(const FMeleeTraceInfo& MeleeTraceInfo, uint32 TraceHash);
 	void InternalEndTrace(uint32 TraceHash);
@@ -112,6 +102,15 @@ protected:
 	
 	TArray<FActiveMeleeTraceInfo> ActiveMeleeTraces;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee Trace")
+	EMeleeTraceByType MeleeTraceByType;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Melee Trace")
 	TEnumAsByte<ECollisionChannel> TraceChannel;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Melee Trace")
+	TEnumAsByte<EObjectTypeQuery> ObjectType;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Melee Trace")
+	FName ProfileName;
 };

@@ -18,7 +18,9 @@ void MeleeTrace::DrawDebugTrace(const UObject* WorldContextObject,
 	EDrawDebugTrace::Type DrawDebugType,
 	bool bHit,
 	const TArray<FHitResult>& HitResults,
-	float DrawTime)
+	float DrawTime,
+	FLinearColor DebugTraceColor /* = FLinearColor::White */,
+	FLinearColor DebugTraceHitColor /* = FLinearColor::White */)
 {
 	const UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
 	if (!World)
@@ -28,8 +30,8 @@ void MeleeTrace::DrawDebugTrace(const UObject* WorldContextObject,
 
 	const UMeleeTraceSettings* Settings = GetDefault<UMeleeTraceSettings>();
 	check(Settings);
-	const FLinearColor TraceColor = Settings->TraceColor;
-	const FLinearColor TraceHitColor = Settings->TraceHitColor;
+	const FLinearColor TraceColor = DebugTraceColor == FLinearColor::White ? Settings->TraceColor : DebugTraceColor;
+	const FLinearColor TraceHitColor = DebugTraceHitColor == FLinearColor::White ? Settings->TraceHitColor : DebugTraceHitColor;
 
 	if (CollisionShape.IsLine())
 	{

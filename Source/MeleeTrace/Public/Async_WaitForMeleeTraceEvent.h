@@ -62,13 +62,7 @@ protected:
 	TWeakObjectPtr<UMeleeTraceComponent> MeleeTraceComponent;
 
 	UFUNCTION()
-	void HandleTraceHit(
-		UMeleeTraceComponent* ThisComponent,
-		AActor* HitActor,
-		const FVector& HitLocation,
-		const FVector& HitNormal,
-		FName HitBoneName,
-		FMeleeTraceInstanceHandle TraceHandle);
+	void HandleTraceHit(UMeleeTraceComponent* ThisComponent, const FHitResult& HitResult, FMeleeTraceInstanceHandle TraceHandle);
 
 	UFUNCTION()
 	void HandleTraceStarted(UMeleeTraceComponent* ThisComponent, FMeleeTraceInstanceHandle TraceHandle);

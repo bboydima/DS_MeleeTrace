@@ -1,14 +1,23 @@
 ﻿// Copyright 2023, Robert Lewicki, All rights reserved.
 
 #include "AnimNotifyState_MeleeTrace.h"
-
-#include "Animation/AnimSequenceBase.h"
-#include "Components/SkeletalMeshComponent.h"
-
+#include <Animation/AnimSequenceBase.h>
+#include <Components/SkeletalMeshComponent.h>
 #include "MeleeTraceCommon.h"
 #include "MeleeTraceComponent.h"
 #include "MeleeTraceDebug.h"
 #include "MeleeTraceShape.h"
+#include "MeleeTrace/MeleeTraceProvider.h"
+
+UAnimNotifyState_MeleeTrace::UAnimNotifyState_MeleeTrace()
+#if WITH_EDITOR
+	: bShouldDrawDebugInEditor(false)
+	, DebugDrawDuration(1.0f)
+	, DebugTraceColor(FLinearColor::White)
+	, DebugTraceHitColor(FLinearColor::White)
+#endif
+{
+}
 
 #if UE_VERSION_OLDER_THAN(5, 0, 0)
 void UAnimNotifyState_MeleeTrace::NotifyBegin(
@@ -38,10 +47,19 @@ void UAnimNotifyState_MeleeTrace::NotifyBegin(USkeletalMeshComponent* MeshComp,
 					*Animation->GetName());
 			}
 
-			MeleeTraceComponent->StartTraceWithContext(MeleeTraceInfo, this);
+			if (MeleeTraceInfo.bEnabled)
+			{
+#if WITH_EDITOR
+				MeleeTraceInfo.DebugTraceColor = DebugTraceColor;
+				MeleeTraceInfo.DebugTraceHitColor = DebugTraceHitColor;
+#endif
+
+				MeleeTraceInfo.MeleeTraceProvider = Cast<const IMeleeTraceProvider>(OwnerActor);
+				MeleeTraceComponent->StartTraceWithContext(MeleeTraceInfo, this);
+			}
 		}
 #if WITH_EDITOR
-		else if (bShouldDrawDebugInEditor)
+		else if (bShouldDrawDebugInEditor && MeleeTraceInfo.bEnabled)
 		{
 			if (MeshComp->DoesSocketExist(MeleeTraceInfo.StartSocketName)
 				&& MeshComp->DoesSocketExist(MeleeTraceInfo.EndSocketName))
@@ -83,11 +101,14 @@ void UAnimNotifyState_MeleeTrace::NotifyEnd(USkeletalMeshComponent* MeshComp,
 	Super::NotifyEnd(MeshComp, Animation, EventReference);
 #endif
 
-	if (const AActor* OwnerActor = MeshComp->GetOwner())
+	if (MeleeTraceInfo.bEnabled)
 	{
-		if (UMeleeTraceComponent* MeleeTraceComponent = OwnerActor->FindComponentByClass<UMeleeTraceComponent>())
+		if (const AActor* OwnerActor = MeshComp->GetOwner())
 		{
-			MeleeTraceComponent->EndTraceWithContext(this);
+			if (UMeleeTraceComponent* MeleeTraceComponent = OwnerActor->FindComponentByClass<UMeleeTraceComponent>())
+			{
+				MeleeTraceComponent->EndTraceWithContext(this);
+			}
 		}
 	}
 
@@ -105,7 +126,7 @@ void UAnimNotifyState_MeleeTrace::NotifyTick(USkeletalMeshComponent* MeshComp,
 	Super::NotifyTick(MeshComp, Animation, FrameDeltaTime, EventReference);
 
 #if WITH_EDITOR
-	if (DebugMeshComponent.IsValid() && bShouldDrawDebugInEditor)
+	if (DebugMeshComponent.IsValid() && bShouldDrawDebugInEditor && MeleeTraceInfo.bEnabled)
 	{
 		const UWorld* World = MeshComp->GetWorld();
 		FCollisionShape CollisionShape;
@@ -132,7 +153,7 @@ void UAnimNotifyState_MeleeTrace::NotifyTick(USkeletalMeshComponent* MeshComp,
 					EDrawDebugTrace::ForDuration,
 					false,
 					{},
-					DebugDrawDuration);	
+					DebugDrawDuration, DebugTraceColor, DebugTraceHitColor);
 			}
 		}
 

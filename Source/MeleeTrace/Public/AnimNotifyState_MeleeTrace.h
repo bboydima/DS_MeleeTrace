@@ -2,12 +2,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Animation/AnimNotifies/AnimNotifyState.h"
-#include "Misc/EngineVersionComparison.h"
-
+#include <CoreMinimal.h>
+#include <Animation/AnimNotifies/AnimNotifyState.h>
+#include <Misc/EngineVersionComparison.h>
 #include "MeleeTraceInfo.h"
-
 #include "AnimNotifyState_MeleeTrace.generated.h"
 
 UCLASS(DisplayName = "Melee Trace")
@@ -16,6 +14,8 @@ class MELEETRACE_API UAnimNotifyState_MeleeTrace : public UAnimNotifyState
 	GENERATED_BODY()
 
 public:
+	UAnimNotifyState_MeleeTrace();
+
 #if UE_VERSION_OLDER_THAN(5, 0, 0)
 	virtual void NotifyBegin(
 		USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration) override;
@@ -39,10 +39,16 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditInstanceOnly, Category = "Debug")
-	bool bShouldDrawDebugInEditor = false;
+	bool bShouldDrawDebugInEditor;
 
 	UPROPERTY(EditInstanceOnly, Category = "Debug")
-	float DebugDrawDuration = 1.0f;
+	float DebugDrawDuration;
+
+	UPROPERTY(EditInstanceOnly, Category = "Debug")
+	FLinearColor DebugTraceColor;
+
+	UPROPERTY(EditInstanceOnly, Category = "Debug")
+	FLinearColor DebugTraceHitColor;
 
 	TArray<FVector> PreviousFrameSamples;
 	TWeakObjectPtr<UMeshComponent> DebugMeshComponent = nullptr;

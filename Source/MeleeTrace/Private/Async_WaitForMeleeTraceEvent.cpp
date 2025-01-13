@@ -65,20 +65,14 @@ void UAsync_WaitForMeleeTraceEvent::Activate()
 	MeleeTraceComponent->OnTraceEnd.AddDynamic(this, &ThisClass::HandleTraceEnded);
 }
 
-void UAsync_WaitForMeleeTraceEvent::HandleTraceHit(
-	UMeleeTraceComponent* ThisComponent,
-	AActor* HitActor,
-	const FVector& HitLocation,
-	const FVector& HitNormal,
-	FName HitBoneName,
-	FMeleeTraceInstanceHandle TraceHandle)
+void UAsync_WaitForMeleeTraceEvent::HandleTraceHit(UMeleeTraceComponent* ThisComponent, const FHitResult& HitResult, FMeleeTraceInstanceHandle TraceHandle)
 {
 	FAsyncMeleeHitInfo HitInfo;
 	HitInfo.OwnerTraceComponent = ThisComponent;
-	HitInfo.HitActor = HitActor;
-	HitInfo.HitLocation = HitLocation;
-	HitInfo.HitNormal = HitNormal;
-	HitInfo.HitBoneName = HitBoneName;
+	HitInfo.HitActor = HitResult.GetActor();
+	HitInfo.HitLocation = HitResult.ImpactPoint;
+	HitInfo.HitNormal = HitResult.ImpactNormal;
+	HitInfo.HitBoneName = HitResult.BoneName;
 	OnHit.Broadcast(HitInfo, TraceHandle);
 }
 

@@ -17,6 +17,8 @@ struct MELEETRACE_API FMeleeTraceInstanceHandle
 
 	FMeleeTraceInstanceHandle() = default;
 	FMeleeTraceInstanceHandle(uint32 InTraceHash) : TraceHash(InTraceHash) {};
+
+	FString ToString() const;
 	
 	UPROPERTY()
 	uint32 TraceHash = TNumericLimits<uint32>::Max();
@@ -29,8 +31,12 @@ struct MELEETRACE_API FActiveMeleeTraceInfo
 {
 	GENERATED_BODY()
 
+	FActiveMeleeTraceInfo();
+
+	FString ToString() const;
+
 	FMeleeTraceInstanceHandle TraceHandle;
-	int32 TraceDensity = 1;
+	int32 TraceDensity;
 	FQuat RotationOffset;
 	FCollisionShape TraceCollisionShape;
 	TWeakObjectPtr<UMeshComponent> SourceMeshComponent;
@@ -38,4 +44,6 @@ struct MELEETRACE_API FActiveMeleeTraceInfo
 	TArray<FVector> PreviousFrameSampleLocations;
 	FName StartSocketName;
 	FName EndSocketName;
+	FLinearColor DebugTraceColor;
+	FLinearColor DebugTraceHitColor;
 };

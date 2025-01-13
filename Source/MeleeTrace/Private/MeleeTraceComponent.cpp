@@ -1,58 +1,74 @@
 ﻿// Copyright 2023, Robert Lewicki, All rights reserved.
 
 #include "MeleeTraceComponent.h"
-
-#include "Components/MeshComponent.h"
-#include "Engine/HitResult.h"
-#include "Engine/World.h"
-
+#include <Components/MeshComponent.h>
+#include <Engine/HitResult.h>
+#include <Engine/World.h>
+#include <Logging/StructuredLog.h>
 #include "MeleeTraceCommon.h"
 #include "MeleeTraceSettings.h"
 #include "MeleeTraceShape.h"
+#include "MeleeTrace/MeleeTraceProvider.h"
 
 #ifdef ENABLE_DRAW_DEBUG
 #include "MeleeTraceDebug.h"
 
-static TAutoConsoleVariable<bool> CVarMeleeTraceShouldDrawDebug(TEXT("MeleeTrace.ShouldDrawDebug"),
+DEFINE_LOG_CATEGORY(LogMeleeTraceComponent);
+
+MELEETRACE_API TAutoConsoleVariable<bool> CVarMeleeTraceShouldDrawDebug(
+	TEXT("MeleeTrace.ShouldDrawDebug"),
 	false,
 	TEXT("When set to true or 1 will draw debug drawings of melee traces. Set to false or 0 to disable."));
-static TAutoConsoleVariable<float> CVarMeleeTraceDrawDebugDuration(TEXT("MeleeTrace.DrawDebugDuration"),
-	1.0f,
+
+MELEETRACE_API TAutoConsoleVariable<float> CVarMeleeTraceDrawDebugDuration(TEXT("MeleeTrace.DrawDebugDuration"),
+	2.0f,
 	TEXT("Defines how long debug drawings will be visible in the viewport."));
 #endif
 
 UMeleeTraceComponent::UMeleeTraceComponent()
+	: MeleeTraceByType(EMeleeTraceByType::ByChannel)
+	, TraceChannel(ECC_WorldStatic)
+	, ObjectType(ObjectTypeQuery1)
+	, ProfileName(NAME_None)
 {
 	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bStartWithTickEnabled = false;
 
-	TraceChannel = GetDefault<UMeleeTraceSettings>()->MeleeTraceCollisionChannel;
+	if (auto Settings = GetDefault<UMeleeTraceSettings>())
+	{
+		MeleeTraceByType = Settings->MeleeTraceByType;
+		TraceChannel = Settings->MeleeTraceCollisionChannel;
+		ObjectType = Settings->ObjectType;
+		ProfileName = Settings->ProfileName;
+	}
 }
 
-void UMeleeTraceComponent::TickComponent(float DeltaTime,
-	ELevelTick TickType,
-	FActorComponentTickFunction* ThisTickFunction)
+void UMeleeTraceComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(UMeleeTraceComponent::TickComponent);
 
-#ifdef ENABLE_DRAW_DEBUG
-	const bool bShouldDrawDebug = CVarMeleeTraceShouldDrawDebug.GetValueOnGameThread();
-	const float DrawDebugDuration = CVarMeleeTraceDrawDebugDuration.GetValueOnGameThread();
-#endif
+	auto Owner = GetOwner();
+	TArray<AActor*> InIgnoreActors = { Owner };
+	TArray<AActor*> AttachedActors;
+
+	Owner->GetAttachedActors(AttachedActors);
+	InIgnoreActors.Append(AttachedActors);
+
+	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
+	ObjectTypes.AddUnique(ObjectType);
+	FCollisionObjectQueryParams ObjectQueryParams(ObjectTypes);
+
 	FCollisionQueryParams CollisionQueryParams;
-	CollisionQueryParams.AddIgnoredActor(GetOwner());
+	CollisionQueryParams.AddIgnoredActors(InIgnoreActors);
+	CollisionQueryParams.bTraceComplex = true;
 	TArray<FHitResult> HitResults;
 	for (FActiveMeleeTraceInfo& ActiveMeleeTrace : ActiveMeleeTraces)
 	{
 		TArray<FVector> NewSamples;
-		GetTraceSamples(ActiveMeleeTrace.SourceMeshComponent.Get(),
-			ActiveMeleeTrace.TraceDensity,
-			ActiveMeleeTrace.StartSocketName,
-			ActiveMeleeTrace.EndSocketName,
-			NewSamples);
-		const FQuat SamplesRotation = ActiveMeleeTrace.SourceMeshComponent->GetSocketRotation(
-			ActiveMeleeTrace.StartSocketName).Quaternion();
+		GetTraceSamples(ActiveMeleeTrace.SourceMeshComponent.Get(), ActiveMeleeTrace.TraceDensity, ActiveMeleeTrace.StartSocketName, ActiveMeleeTrace.EndSocketName, NewSamples);
+		const FQuat SamplesRotation = ActiveMeleeTrace.SourceMeshComponent->GetSocketRotation(ActiveMeleeTrace.StartSocketName).Quaternion();
 		const FQuat OffsetRotation = ActiveMeleeTrace.RotationOffset * SamplesRotation;
 		for (int32 Index = 0; Index < NewSamples.Num(); Index++)
 		{
@@ -62,24 +78,59 @@ void UMeleeTraceComponent::TickComponent(float DeltaTime,
 			{
 				PreviousSampleLocation += FVector::UpVector * UE_KINDA_SMALL_NUMBER;
 			}
-			const bool bHit = GetWorld()->SweepMultiByChannel(HitResults,
-				PreviousSampleLocation,
-				NewSamples[Index],
-				OffsetRotation,
-				TraceChannel,
-				ActiveMeleeTrace.TraceCollisionShape,
-				CollisionQueryParams);
+
+			bool bHit = false;
+			switch (MeleeTraceByType)
+			{
+				case EMeleeTraceByType::ByChannel:
+				{
+					bHit = GetWorld()->SweepMultiByChannel(HitResults,
+						PreviousSampleLocation,
+						NewSamples[Index],
+						OffsetRotation,
+						TraceChannel,
+						ActiveMeleeTrace.TraceCollisionShape,
+						CollisionQueryParams);
+					break;
+				}
+
+				case EMeleeTraceByType::ByObjectType:
+				{
+					bHit = GetWorld()->SweepMultiByObjectType(HitResults,
+						PreviousSampleLocation,
+						NewSamples[Index],
+						OffsetRotation,
+						ObjectQueryParams,
+						ActiveMeleeTrace.TraceCollisionShape,
+						CollisionQueryParams);
+					break;
+				}
+
+				case EMeleeTraceByType::ByProfile:
+				{
+					bHit = GetWorld()->SweepMultiByProfile(HitResults,
+						PreviousSampleLocation,
+						NewSamples[Index],
+						OffsetRotation,
+						ProfileName,
+						ActiveMeleeTrace.TraceCollisionShape,
+						CollisionQueryParams);
+					break;
+				}
+
+				default:
+					break;
+			}
+
 #ifdef ENABLE_DRAW_DEBUG
-			if (bShouldDrawDebug)
+			if (CVarMeleeTraceShouldDrawDebug.GetValueOnGameThread())
 			{
 				MeleeTrace::DrawDebugTrace(this,
 					ActiveMeleeTrace.TraceCollisionShape,
 					FTransform(OffsetRotation, ActiveMeleeTrace.PreviousFrameSampleLocations[Index]),
 					FTransform(OffsetRotation, NewSamples[Index]),
-					EDrawDebugTrace::Type::ForDuration,
-					bHit,
-					HitResults,
-					DrawDebugDuration);
+					EDrawDebugTrace::Type::ForDuration, bHit, HitResults,
+					CVarMeleeTraceDrawDebugDuration.GetValueOnGameThread(), 	ActiveMeleeTrace.DebugTraceColor, ActiveMeleeTrace.DebugTraceHitColor);
 			}
 #endif
 			if (!bHit)
@@ -92,12 +143,7 @@ void UMeleeTraceComponent::TickComponent(float DeltaTime,
 				if (!ActiveMeleeTrace.HitActors.Contains(HitResult.GetActor()))
 				{
 					ActiveMeleeTrace.HitActors.Add(HitResult.GetActor());
-					OnTraceHit.Broadcast(this,
-						HitResult.GetActor(),
-						HitResult.ImpactPoint,
-						HitResult.ImpactNormal,
-						HitResult.BoneName,
-						ActiveMeleeTrace.TraceHandle);
+					OnTraceHit.Broadcast(this, HitResult, ActiveMeleeTrace.TraceHandle);
 				}
 			}
 		}
@@ -216,18 +262,36 @@ void UMeleeTraceComponent::InternalStartTrace(const FMeleeTraceInfo& MeleeTraceI
 	check(Owner);
 
 	TArray<UActorComponent*> MeshComponents;
-	TArray<AActor*> ActorsToCheck = { Owner };
-	TArray<AActor*> AttachedActors;
-
-	Owner->GetAttachedActors(AttachedActors);
-	ActorsToCheck.Append(AttachedActors);
-
-	for (const AActor* Actor : ActorsToCheck)
+	const auto& MeleeTraceProvider = MeleeTraceInfo.MeleeTraceProvider;
+	if (MeleeTraceProvider.IsValid())
 	{
-		TArray<UActorComponent*> ActorMeshComponents;
-		Actor->GetComponents(UMeshComponent::StaticClass(), ActorMeshComponents);
-		MeshComponents.Append(ActorMeshComponents);
+		const UObject* InterfaceObject = MeleeTraceProvider.GetObject();
+		MeshComponents = MeleeTraceProvider->Execute_GetMeshComponents(InterfaceObject);
 	}
+	else
+	{
+		TArray<AActor*> ActorsToCheck = { Owner };
+		TArray<AActor*> AttachedActors;
+
+		Owner->GetAttachedActors(AttachedActors);
+		ActorsToCheck.Append(AttachedActors);
+
+		const FName& MeshTag = MeleeTraceInfo.MeshTag;
+		for (const AActor* Actor : ActorsToCheck)
+		{
+			TArray<UActorComponent*> ActorMeshComponents;
+			if (MeshTag.IsValid() && !MeshTag.IsEqual(NAME_None))
+			{
+				ActorMeshComponents = Actor->GetComponentsByTag(UMeshComponent::StaticClass(), MeshTag);
+			}
+			else
+			{
+				Actor->GetComponents(UMeshComponent::StaticClass(), ActorMeshComponents);
+			}
+
+			MeshComponents.Append(ActorMeshComponents);
+		}
+	}	
 
 	for (UActorComponent* MeshComponent : MeshComponents)
 	{
@@ -241,9 +305,15 @@ void UMeleeTraceComponent::InternalStartTrace(const FMeleeTraceInfo& MeleeTraceI
 			NewMeleeTraceInfo.TraceDensity = MeleeTraceInfo.TraceDensity;
 			NewMeleeTraceInfo.StartSocketName = MeleeTraceInfo.StartSocketName;
 			NewMeleeTraceInfo.EndSocketName = MeleeTraceInfo.EndSocketName;
-			if (ensureMsgf(MeleeTraceInfo.TraceShape->IsValidLowLevelFast(),
-				TEXT("%s: Invalid trace shape definition"),
-				*GetNameSafe(GetOwner())))
+
+			UE_LOGFMT(LogMeleeTraceComponent, Verbose, "StartTrace {0}", NewMeleeTraceInfo.ToString());
+
+#ifdef ENABLE_DRAW_DEBUG
+			NewMeleeTraceInfo.DebugTraceColor = MeleeTraceInfo.DebugTraceColor;
+			NewMeleeTraceInfo.DebugTraceHitColor = MeleeTraceInfo.DebugTraceHitColor;
+#endif
+
+			if (ensureMsgf(MeleeTraceInfo.TraceShape->IsValidLowLevelFast(), TEXT("%s: Invalid trace shape definition"), *GetNameSafe(GetOwner())))
 			{
 				NewMeleeTraceInfo.RotationOffset = MeleeTraceInfo.TraceShape->GetRotationOffset();
 				NewMeleeTraceInfo.TraceCollisionShape = MeleeTraceInfo.TraceShape->CreateCollisionShape();
@@ -254,12 +324,11 @@ void UMeleeTraceComponent::InternalStartTrace(const FMeleeTraceInfo& MeleeTraceI
 				NewMeleeTraceInfo.RotationOffset = FQuat::Identity;
 				NewMeleeTraceInfo.TraceCollisionShape = FCollisionShape();
 			}
+
 			NewMeleeTraceInfo.SourceMeshComponent = TypedMeshComponent;
-			GetTraceSamples(TypedMeshComponent,
-				MeleeTraceInfo.TraceDensity,
-				MeleeTraceInfo.StartSocketName,
-				MeleeTraceInfo.EndSocketName,
-				NewMeleeTraceInfo.PreviousFrameSampleLocations);
+			GetTraceSamples(TypedMeshComponent, MeleeTraceInfo.TraceDensity, MeleeTraceInfo.StartSocketName, MeleeTraceInfo.EndSocketName, NewMeleeTraceInfo.PreviousFrameSampleLocations);
+
+			SetComponentTickEnabled(true);
 			OnTraceStart.Broadcast(this, NewMeleeTraceInfo.TraceHandle);
 			return;
 		}
@@ -288,11 +357,16 @@ void UMeleeTraceComponent::InternalEndTrace(uint32 TraceHash)
 		TEXT("Attemping to end trace with hash: %u but no trace with hash exist"),
 		TraceHash))
 	{
-		OnTraceEnd.Broadcast(
-			this,
-			ActiveMeleeTraces[FoundIndex].HitActors.Num(),
-			ActiveMeleeTraces[FoundIndex].TraceHandle);
+		OnTraceEnd.Broadcast(this, ActiveMeleeTraces[FoundIndex].HitActors.Num(), ActiveMeleeTraces[FoundIndex].TraceHandle);
+
+		UE_LOGFMT(LogMeleeTraceComponent, Verbose, "EndTrace {0}", ActiveMeleeTraces[FoundIndex].ToString());
+
 		ActiveMeleeTraces.RemoveAtSwap(FoundIndex);
+
+		if (!IsAnyTraceActive())
+		{
+			SetComponentTickEnabled(false);
+		}
 	}
 }
 
