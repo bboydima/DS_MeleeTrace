@@ -63,6 +63,7 @@ void UMeleeTraceComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 	FCollisionQueryParams CollisionQueryParams;
 	CollisionQueryParams.AddIgnoredActors(InIgnoreActors);
 	CollisionQueryParams.bTraceComplex = true;
+	CollisionQueryParams.bReturnPhysicalMaterial = true;
 	TArray<FHitResult> HitResults;
 	for (FActiveMeleeTraceInfo& ActiveMeleeTrace : ActiveMeleeTraces)
 	{
