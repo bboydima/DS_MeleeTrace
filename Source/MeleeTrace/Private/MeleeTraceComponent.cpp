@@ -52,9 +52,7 @@ void UMeleeTraceComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 	auto Owner = GetOwner();
 	TArray<AActor*> InIgnoreActors = { Owner };
 	TArray<AActor*> AttachedActors;
-
-	Owner->GetAttachedActors(AttachedActors);
-	InIgnoreActors.Append(AttachedActors);
+	InIgnoreActors.Append(Owner->Children);
 
 	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
 	ObjectTypes.AddUnique(ObjectType);
@@ -62,7 +60,7 @@ void UMeleeTraceComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 
 	FCollisionQueryParams CollisionQueryParams;
 	CollisionQueryParams.AddIgnoredActors(InIgnoreActors);
-	CollisionQueryParams.bTraceComplex = true;
+	CollisionQueryParams.bTraceComplex = false;
 	CollisionQueryParams.bReturnPhysicalMaterial = true;
 	TArray<FHitResult> HitResults;
 	for (FActiveMeleeTraceInfo& ActiveMeleeTrace : ActiveMeleeTraces)
