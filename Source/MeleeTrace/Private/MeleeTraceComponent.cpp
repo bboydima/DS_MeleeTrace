@@ -260,6 +260,8 @@ void UMeleeTraceComponent::InternalStartTrace(const FMeleeTraceInfo& MeleeTraceI
 	AActor* Owner = GetOwner();
 	check(Owner);
 
+	const FName& MeshTag = MeleeTraceInfo.MeshTag;
+
 	TArray<UActorComponent*> MeshComponents;
 	const auto& MeleeTraceProvider = MeleeTraceInfo.MeleeTraceProvider;
 	if (MeleeTraceProvider.IsValid())
@@ -275,7 +277,6 @@ void UMeleeTraceComponent::InternalStartTrace(const FMeleeTraceInfo& MeleeTraceI
 		Owner->GetAttachedActors(AttachedActors);
 		ActorsToCheck.Append(AttachedActors);
 
-		const FName& MeshTag = MeleeTraceInfo.MeshTag;
 		for (const AActor* Actor : ActorsToCheck)
 		{
 			TArray<UActorComponent*> ActorMeshComponents;
@@ -296,6 +297,15 @@ void UMeleeTraceComponent::InternalStartTrace(const FMeleeTraceInfo& MeleeTraceI
 	{
 		UMeshComponent* TypedMeshComponent = Cast<UMeshComponent>(MeshComponent);
 		check(TypedMeshComponent);
+
+		if (MeshTag != NAME_None && MeshTag.IsValid())
+		{
+			if (!TypedMeshComponent->ComponentHasTag(MeshTag))
+			{
+				continue;
+			}
+		}
+
 		if (TypedMeshComponent->DoesSocketExist(MeleeTraceInfo.StartSocketName) 
 			&& TypedMeshComponent->DoesSocketExist(MeleeTraceInfo.EndSocketName))
 		{
